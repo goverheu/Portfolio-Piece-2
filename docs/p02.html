@@ -295,13 +295,97 @@ $(document).ready(function () {
 </div>
 
 
-<blockquote>
-<p>The projects should be numbered consecutively (i.e., in the order in
-which you began them), and should include for each project a description
-of the goal, the product (computer program, hand graph, computer graph,
-etc.), the data, and some interpretation. Reports must be reproducible
-and of high quality in terms of writing, grammar, presentation, etc.</p>
-</blockquote>
+<p>For my second portfolio, I am going to generate a crime map of the
+United States using the skills I learned from lab 4, as well as some
+skills I have learned through my own experimentation with R for personal
+projects. As I believe I had mentioned in my first portfolio, I would
+like to pursue a career which helps in some way to combat crime, whether
+it be through the FBI or local law enforcement agencies. As such,
+generating a crime map of the US would be very useful general knowledge
+for me to know.</p>
+<p>First, we will download the necessary packages for creating the
+map:</p>
+<p>This will lead to us loading the packages in this step:</p>
+<pre class="r"><code>library(tidyverse)</code></pre>
+<pre><code>## ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
+## ✔ dplyr     1.1.4     ✔ readr     2.1.6
+## ✔ forcats   1.0.1     ✔ stringr   1.6.0
+## ✔ ggplot2   4.0.1     ✔ tibble    3.3.1
+## ✔ lubridate 1.9.4     ✔ tidyr     1.3.2
+## ✔ purrr     1.2.1     
+## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+## ✖ dplyr::filter() masks stats::filter()
+## ✖ dplyr::lag()    masks stats::lag()
+## ℹ Use the conflicted package (&lt;http://conflicted.r-lib.org/&gt;) to force all conflicts to become errors</code></pre>
+<pre class="r"><code>library(sf)</code></pre>
+<pre><code>## Linking to GEOS 3.13.1, GDAL 3.11.4, PROJ 9.7.0; sf_use_s2() is TRUE</code></pre>
+<pre class="r"><code>library(tigris)</code></pre>
+<pre><code>## To enable caching of data, set `options(tigris_use_cache = TRUE)`
+## in your R script or .Rprofile.</code></pre>
+<pre class="r"><code>library(viridis)</code></pre>
+<pre><code>## Loading required package: viridisLite</code></pre>
+<p>Here we will render the US states data set. Since we are trying to
+display data for a whole area (state) rather than one specific
+coordinate on a map, we need to make each state a “polygon” shape. This
+will ensure that the crime data is shown for the entirety of each state
+rather than one single geographical point, thereby properly representing
+the data.</p>
+<pre class="r"><code>states_map &lt;- states(cb = TRUE, resolution = &quot;20m&quot;) |&gt;
+  st_transform(4326)</code></pre>
+<pre><code>## Retrieving data for the year 2024</code></pre>
+<pre><code>##   |                                                                              |                                                                      |   0%  |                                                                              |====                                                                  |   6%  |                                                                              |=========                                                             |  12%  |                                                                              |===========                                                           |  16%  |                                                                              |=============                                                         |  18%  |                                                                              |===============                                                       |  21%  |                                                                              |===================                                                   |  28%  |                                                                              |=====================                                                 |  30%  |                                                                              |========================                                              |  35%  |                                                                              |==========================                                            |  37%  |                                                                              |===============================                                       |  44%  |                                                                              |================================                                      |  46%  |                                                                              |===================================                                   |  51%  |                                                                              |=======================================                               |  55%  |                                                                              |===========================================                           |  62%  |                                                                              |===============================================                       |  66%  |                                                                              |==================================================                    |  71%  |                                                                              |===================================================                   |  73%  |                                                                              |======================================================                |  78%  |                                                                              |==========================================================            |  82%  |                                                                              |==============================================================        |  89%  |                                                                              |=================================================================     |  93%  |                                                                              |======================================================================| 100%</code></pre>
+<p>Next, we will generate the crime statistics for each state:</p>
+<pre class="r"><code>crime_df &lt;- read_csv(
+  &quot;https://gist.githubusercontent.com/ncavestany/8dface70f6bc9e576c6847bb7ca09dc3/raw/state_crime.csv&quot;
+)</code></pre>
+<pre><code>## Rows: 624 Columns: 21
+## ── Column specification ────────────────────────────────────────────────────────
+## Delimiter: &quot;,&quot;
+## chr  (1): State
+## dbl (20): Year, Data.Population, Data.Rates.Property.All, Data.Rates.Propert...
+## 
+## ℹ Use `spec()` to retrieve the full column specification for this data.
+## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.</code></pre>
+<p>This provides data for the United States from the years 2000-2019 for
+various crimes such as burglary, property crimes, and violent crime.
+However, I would like to look at the most recent statistics provided, so
+I will generate graph solely for the year 2019. Let’s also choose murder
+as the crime the map will represent:</p>
+<pre class="r"><code>murder_2019 &lt;- crime_df %&gt;%
+  filter(Year == 2019) %&gt;%
+  select(State, murder_rate = Data.Rates.Violent.Murder) %&gt;%
+  filter(State != &quot;United States&quot;) %&gt;%  # remove aggregate row
+  mutate(State = tolower(State)) </code></pre>
+<pre class="r"><code>library(dplyr)
+library(ggplot2)
+library(sf)
+
+murder_2019 &lt;- murder_2019 %&gt;%
+  filter(State != &quot;United States&quot;) %&gt;%
+  mutate(State = tolower(State))
+
+states_map &lt;- states_map %&gt;%
+  mutate(NAME = tolower(NAME))
+
+map_data &lt;- states_map %&gt;%
+  left_join(murder_2019, by = c(&quot;NAME&quot; = &quot;State&quot;))
+
+ggplot(map_data) +
+  geom_sf(aes(fill = murder_rate), color = &quot;white&quot;) +
+  scale_fill_viridis_c(option = &quot;plasma&quot;, name = &quot;Murder Rate (per 100k)&quot;) +
+  labs(
+    title = &quot;US Murder Rate by State — 2019&quot;,
+    caption = &quot;Data from state_crime.csv gist&quot;
+  ) +
+  theme_minimal()</code></pre>
+<p><img src="p02_files/figure-html/unnamed-chunk-5-1.png" alt="" width="672" />
+Now, we have officially generated a heat signature map for the murder
+statistics for each US State. Regarding a brief analysis of this graph,
+we can see states such as Louisiana. Missouri, and Mississippi have some
+of the highest murder rates, while states such as Montana, South Dakota,
+and Wyoming have some of the lowest. It is also notable to mention that,
+for the most part, states with major metropolitan areas and cities tend
+to have higher murder rates than those which do not.</p>
 
 
 

@@ -2,5 +2,66 @@
 title: "Portfolio 2"
 ---
 
-> The projects should be numbered consecutively (i.e., in the order in which you began them), and should include for each project a description of the goal, the product (computer program, hand graph, computer graph, etc.), the data, and some interpretation. Reports must be reproducible and of high quality in terms of writing, grammar, presentation, etc.
+For my second portfolio, I am going to generate a crime map of the United States using the skills I learned from lab 4, as well as some skills I have learned through my own experimentation with R for personal projects. As I believe I had mentioned in my first portfolio, I would like to pursue a career which helps in some way to combat crime, whether it be through the FBI or local law enforcement agencies. As such, generating a crime map of the US would be very useful general knowledge for me to know.
 
+First, we will download the necessary packages for creating the map: 
+
+
+
+This will lead to us loading the packages in this step:
+```{r}
+library(tidyverse)
+library(sf)
+library(tigris)
+library(viridis)
+```
+
+Here we will render the US states data set. Since we are trying to display data for a whole area (state) rather than one specific coordinate on a map, we need to make each state a "polygon" shape. This will ensure that the crime data is shown for the entirety of each state rather than one single geographical point, thereby properly representing the data.
+
+```{r}
+states_map <- states(cb = TRUE, resolution = "20m") |>
+  st_transform(4326)
+```
+
+Next, we will generate the crime statistics for each state:
+```{r}
+crime_df <- read_csv(
+  "https://gist.githubusercontent.com/ncavestany/8dface70f6bc9e576c6847bb7ca09dc3/raw/state_crime.csv"
+)
+```
+
+This provides data for the United States from the years 2000-2019 for various crimes such as burglary, property crimes, and violent crime. However, I would like to look at the most recent statistics provided, so I will generate graph solely for the year 2019. Let's also choose murder as the crime the map will represent:
+
+```{r}
+murder_2019 <- crime_df %>%
+  filter(Year == 2019) %>%
+  select(State, murder_rate = Data.Rates.Violent.Murder) %>%
+  filter(State != "United States") %>%  # remove aggregate row
+  mutate(State = tolower(State)) 
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(sf)
+
+murder_2019 <- murder_2019 %>%
+  filter(State != "United States") %>%
+  mutate(State = tolower(State))
+
+states_map <- states_map %>%
+  mutate(NAME = tolower(NAME))
+
+map_data <- states_map %>%
+  left_join(murder_2019, by = c("NAME" = "State"))
+
+ggplot(map_data) +
+  geom_sf(aes(fill = murder_rate), color = "white") +
+  scale_fill_viridis_c(option = "plasma", name = "Murder Rate (per 100k)") +
+  labs(
+    title = "US Murder Rate by State — 2019",
+    caption = "Data from state_crime.csv gist"
+  ) +
+  theme_minimal()
+```
+Now, we have officially generated a heat signature map for the murder statistics for each US State. Regarding a brief analysis of this graph, we can see states such as Louisiana. Missouri, and Mississippi have some of the highest murder rates, while states such as Montana, South Dakota, and Wyoming have some of the lowest. It is also notable to mention that, for the most part, states with major metropolitan areas and cities tend to have higher murder rates than those which do not.
